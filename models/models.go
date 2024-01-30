@@ -11,15 +11,16 @@ const (
 	MethodDefinttion    AstNodeType = "MethodDefinttion"
 	ParameterDefinition AstNodeType = "ParameterDefinition"
 	StringLiteral       AstNodeType = "StringLiteral"
-	IntLiteral          AstNodeType = "IntLiteral"
-	BoolLiteral         AstNodeType = "BoolLiteral"
+	IntLiteral          AstNodeType = "IntegerLiteral"
+	BoolLiteral         AstNodeType = "BooleanLiteral"
 	FloatLiteral        AstNodeType = "FloatLiteral"
 	VoidLiteral         AstNodeType = "VoidLiteral"
 	AnyLiteral          AstNodeType = "AnyLiteral"
 	StructLiteral       AstNodeType = "StructLiteral"
 	TypeLiteral         AstNodeType = "TypeLiteral"
 	TypeAlias           AstNodeType = "TypeAlias"
-	CustomTypeLiteral   AstNodeType = "CustomTypeLiteral"
+	CustomNodeLiteral   AstNodeType = "CustomNodeLiteral"
+	ArrayType           AstNodeType = "ArrayType"
 )
 
 type AstNode interface {
@@ -46,7 +47,7 @@ func (builtInType BuiltInType) GetPAth() *string {
 }
 
 type CustomType struct {
-	Name *string     `json:"name"`
+	Name *string     `json:"rawValue"`
 	Type AstNodeType `json:"type"`
 }
 
@@ -55,7 +56,7 @@ func (customType CustomType) GetName() *string {
 }
 
 func (customType CustomType) GetType() AstNodeType {
-	return CustomTypeLiteral
+	return CustomNodeLiteral
 }
 
 func (customType CustomType) GetPAth() *string {
@@ -63,9 +64,10 @@ func (customType CustomType) GetPAth() *string {
 }
 
 type Class struct {
-	Name    string    `json:"name"`
-	Path    string    `json:"path"`
-	Methods []*Method `json:"methods"`
+	Name    string      `json:"name"`
+	Path    string      `json:"path"`
+	Methods []*Method   `json:"methods"`
+	Type    AstNodeType `json:"type"`
 }
 
 func (class Class) GetName() *string {
@@ -78,6 +80,23 @@ func (class Class) GetType() AstNodeType {
 
 func (class Class) GetPAth() *string {
 	return &class.Path
+}
+
+type Array struct {
+	Type    AstNodeType `json:"type"`
+	Generic AstNode     `json:"generic"`
+}
+
+func (array Array) GetName() *string {
+	return nil
+}
+
+func (array Array) GetType() AstNodeType {
+	return ArrayType
+}
+
+func (array Array) GetPAth() *string {
+	return nil
 }
 
 type Method struct {
@@ -99,6 +118,7 @@ type StructProperty struct {
 }
 
 type TypeLiteralStruct struct {
+	Type       AstNodeType       `json:"type"`
 	Properties []*StructProperty `json:"properties"`
 }
 

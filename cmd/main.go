@@ -11,6 +11,20 @@ import (
 	genezio_parser "gnz-go-ast/parser"
 )
 
+type Error struct {
+	Error string `json:"error"`
+}
+
+func SendError(err error) {
+	json, err := json.Marshal(Error{
+		Error: err.Error(),
+	})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(string(json))
+}
+
 func main() {
 	filePath := os.Args[1]
 	cwd, err := os.Getwd()
@@ -27,24 +41,27 @@ func main() {
 	}
 	pkgs, err := packages.Load(cfg, classDirectory)
 	if err != nil {
-		panic(err)
+		SendError(err)
+		return
 	}
 	if packages.PrintErrors(pkgs) > 0 {
 		os.Exit(1)
 	}
 	for _, pkg := range pkgs {
 		for _, err := range pkg.Errors {
-			panic(err)
+			SendError(err)
+			return
 		}
-		fmt.Println(pkg.Name, pkg.GoFiles)
 		astParser := genezio_parser.New(pkg.TypesInfo, pkg.Types)
 		err = astParser.Parse(pkg.Syntax[0])
 		if err != nil {
-			panic(err)
+			SendError(err)
+			return
 		}
 		json, err := json.MarshalIndent(astParser.Program, "", "  ")
 		if err != nil {
-			panic(err)
+			SendError(err)
+			return
 		}
 		fmt.Println(string(json))
 	}
