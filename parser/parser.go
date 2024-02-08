@@ -32,11 +32,16 @@ func (parser *Parser) Parse(file *ast.File) error {
 		}
 		switch obj.(type) {
 		case *types.TypeName:
+			obj := obj.(*types.TypeName)
 			varType := obj.Type().Underlying()
 			switch varType.(type) {
 			case *types.Struct:
 				methods := typeutil.IntuitiveMethodSet(obj.Type(), nil)
 				if len(methods) == 0 {
+					continue
+				}
+				// check if there is a constructor method for the struct
+				if !parser.HasConstructorMethod(obj) {
 					continue
 				}
 				class := &models.Class{
@@ -52,10 +57,30 @@ func (parser *Parser) Parse(file *ast.File) error {
 						return err
 					}
 				}
+				return nil
 			}
 		}
 	}
-	return nil
+	return errors.New("no class found")
+}
+
+func (parser *Parser) HasConstructorMethod(obj types.Object) bool {
+	// check if there is a method in the package that returns the struct type
+	for _, object := range parser.Info.Defs {
+		if object == nil {
+			continue
+		}
+		switch object.(type) {
+		case *types.Func:
+			function := object.(*types.Func)
+			if function.Type().(*types.Signature).Results().Len() == 1 && function.Name() == "New" {
+				if function.Type().(*types.Signature).Results().At(0).Type() == obj.Type() {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func (parser *Parser) ParseFunction(class *models.Class, function *types.Func) error {
@@ -87,22 +112,21 @@ func (parser *Parser) ParseFunction(class *models.Class, function *types.Func) e
 }
 
 func checkIfTypeIsErrorInterface(expr types.Type) bool {
-	if types.IsInterface(expr) {
-		interfaceType := expr.Underlying().(*types.Interface)
-		var found bool
-		for i := 0; i < interfaceType.NumMethods(); i++ {
-			method := interfaceType.Method(i)
-			methodName := method.Name()
-			numberOfParams := method.Type().(*types.Signature).Params().Len()
-			numberOfResults := method.Type().(*types.Signature).Results().Len()
-			resultType := method.Type().(*types.Signature).Results().At(0).Type().String()
-			if methodName == "Error" && numberOfParams == 0 && numberOfResults == 1 && resultType == "string" {
-				found = true
-			}
-		}
-		return found
+	// construct an error interface
+	recvTypeParams := []*types.TypeParam{}
+	typeParams := []*types.TypeParam{}
+	errorInterface := types.NewInterfaceType([]*types.Func{
+		types.NewFunc(0, nil, "Error", types.NewSignatureType(nil, recvTypeParams, typeParams, types.NewTuple(), types.NewTuple(types.NewVar(0, nil, "", types.Typ[types.String])), false)),
+	}, nil)
+	// check if the type implements the error interface
+	switch expr := expr.(type) {
+	case *types.Interface:
+		return types.Implements(expr, errorInterface)
+	case *types.Pointer:
+		return types.Implements(expr.Elem(), errorInterface) || types.Implements(expr, errorInterface)
+	default:
+		return types.Implements(expr, errorInterface)
 	}
-	return false
 }
 
 func (parser *Parser) MapReturnTypeToAstNodeType(returnTuple *types.Tuple) (models.AstNode, error) {
