@@ -68,7 +68,7 @@ type Class struct {
 	Path      string      `json:"path"`
 	Methods   []*Method   `json:"methods"`
 	Type      AstNodeType `json:"type"`
-	DocString *string     `json:"docString,omitempty"`
+	DocString string      `json:"docString,omitempty"`
 }
 
 func (class Class) GetName() *string {
@@ -104,7 +104,7 @@ type Method struct {
 	Name      string   `json:"name"`
 	Params    []*Param `json:"params"`
 	Type      AstNode  `json:"returnType"`
-	DocString *string  `json:"docString,omitempty"`
+	DocString string   `json:"docString,omitempty"`
 }
 
 type Param struct {

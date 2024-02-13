@@ -54,9 +54,9 @@ func (parser *Parser) Parse(file *ast.File) error {
 						break
 					}
 				}
-				var docString *string
+				var docString string
 				if parser.TypeDoc != nil {
-					docString = &parser.TypeDoc.Doc
+					docString = parser.TypeDoc.Doc
 				}
 				class := &models.Class{
 					Name:      id.Name,
@@ -104,11 +104,11 @@ func (parser *Parser) ParseFunction(class *models.Class, function *types.Func) e
 	if err != nil {
 		return err
 	}
-	var funcDoc *string
+	var funcDoc string
 	if parser.TypeDoc != nil {
 		for _, f := range parser.TypeDoc.Methods {
 			if f.Name == function.Name() {
-				funcDoc = &f.Doc
+				funcDoc = f.Doc
 				break
 			}
 		}
