@@ -3,6 +3,7 @@ package parser
 import (
 	"errors"
 	"go/ast"
+	"go/doc"
 	"go/types"
 
 	"golang.org/x/tools/go/types/typeutil"
@@ -14,13 +15,16 @@ type Parser struct {
 	Program *models.Program
 	Info    *types.Info
 	Package *types.Package
+	Docs    *doc.Package
+	TypeDoc *doc.Type
 }
 
-func New(info *types.Info, pkg *types.Package) *Parser {
+func New(info *types.Info, pkg *types.Package, doc *doc.Package) *Parser {
 	return &Parser{
 		Program: &models.Program{},
 		Info:    info,
 		Package: pkg,
+		Docs:    doc,
 	}
 }
 
@@ -44,10 +48,21 @@ func (parser *Parser) Parse(file *ast.File) error {
 				if !parser.HasConstructorMethod(obj) {
 					continue
 				}
+				for _, t := range parser.Docs.Types {
+					if t.Name == id.Name {
+						parser.TypeDoc = t
+						break
+					}
+				}
+				var docString *string
+				if parser.TypeDoc != nil {
+					docString = &parser.TypeDoc.Doc
+				}
 				class := &models.Class{
-					Name: id.Name,
-					Path: parser.Package.Path() + "/" + parser.Package.Name(),
-					Type: models.ClassDefinition,
+					Name:      id.Name,
+					Path:      parser.Package.Path() + "/" + parser.Package.Name(),
+					Type:      models.ClassDefinition,
+					DocString: docString,
 				}
 				class.Methods = make([]*models.Method, 0)
 				parser.Program.Body = append(parser.Program.Body, class)
@@ -89,9 +104,19 @@ func (parser *Parser) ParseFunction(class *models.Class, function *types.Func) e
 	if err != nil {
 		return err
 	}
+	var funcDoc *string
+	if parser.TypeDoc != nil {
+		for _, f := range parser.TypeDoc.Methods {
+			if f.Name == function.Name() {
+				funcDoc = &f.Doc
+				break
+			}
+		}
+	}
 	method := &models.Method{
-		Name: function.Name(),
-		Type: returnType,
+		Name:      function.Name(),
+		Type:      returnType,
+		DocString: funcDoc,
 	}
 	method.Params = make([]*models.Param, 0)
 	for i := 0; i < functionSignature.Params().Len(); i++ {

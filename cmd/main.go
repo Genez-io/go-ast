@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"go/doc"
 	"os"
 	"path/filepath"
 
@@ -52,7 +53,12 @@ func main() {
 			SendError(err)
 			return
 		}
-		astParser := genezio_parser.New(pkg.TypesInfo, pkg.Types)
+		p, err := doc.NewFromFiles(pkg.Fset, pkg.Syntax, "")
+		if err != nil {
+			SendError(err)
+			return
+		}
+		astParser := genezio_parser.New(pkg.TypesInfo, pkg.Types, p)
 		err = astParser.Parse(pkg.Syntax[0])
 		if err != nil {
 			SendError(err)

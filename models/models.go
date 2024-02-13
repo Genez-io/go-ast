@@ -64,10 +64,11 @@ func (customType CustomType) GetPAth() *string {
 }
 
 type Class struct {
-	Name    string      `json:"name"`
-	Path    string      `json:"path"`
-	Methods []*Method   `json:"methods"`
-	Type    AstNodeType `json:"type"`
+	Name      string      `json:"name"`
+	Path      string      `json:"path"`
+	Methods   []*Method   `json:"methods"`
+	Type      AstNodeType `json:"type"`
+	DocString *string     `json:"docString,omitempty"`
 }
 
 func (class Class) GetName() *string {
@@ -100,9 +101,10 @@ func (array Array) GetPAth() *string {
 }
 
 type Method struct {
-	Name   string   `json:"name"`
-	Params []*Param `json:"params"`
-	Type   AstNode  `json:"returnType"`
+	Name      string   `json:"name"`
+	Params    []*Param `json:"params"`
+	Type      AstNode  `json:"returnType"`
+	DocString *string  `json:"docString,omitempty"`
 }
 
 type Param struct {
