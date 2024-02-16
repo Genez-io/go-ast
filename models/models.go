@@ -21,6 +21,7 @@ const (
 	TypeAlias           AstNodeType = "TypeAlias"
 	CustomNodeLiteral   AstNodeType = "CustomNodeLiteral"
 	ArrayType           AstNodeType = "ArrayType"
+	MapType             AstNodeType = "MapType"
 )
 
 type AstNode interface {
@@ -97,6 +98,24 @@ func (array Array) GetType() AstNodeType {
 }
 
 func (array Array) GetPAth() *string {
+	return nil
+}
+
+type Map struct {
+	Type         AstNodeType `json:"type"`
+	GenericKey   AstNode     `json:"genericKey"`
+	GenericValue AstNode     `json:"genericValue"`
+}
+
+func (mapType Map) GetName() *string {
+	return nil
+}
+
+func (mapType Map) GetType() AstNodeType {
+	return MapType
+}
+
+func (mapType Map) GetPAth() *string {
 	return nil
 }
 

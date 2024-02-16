@@ -126,9 +126,13 @@ func (parser *Parser) ParseFunction(class *models.Class, function *types.Func) e
 		case *types.Pointer:
 			optional = true
 		}
+		paramType, err := parser.MapToAstNodeType(param.Type())
+		if err != nil {
+			return err
+		}
 		method.Params = append(method.Params, &models.Param{
 			Name:     param.Name(),
-			Type:     parser.MapToAstNodeType(param.Type()),
+			Type:     paramType,
 			Optional: optional,
 		})
 	}
@@ -169,31 +173,31 @@ func (parser *Parser) MapReturnTypeToAstNodeType(returnTuple *types.Tuple) (mode
 		if !checkIfTypeIsErrorInterface(returnTuple.At(1).Type()) {
 			return nil, errors.New("return tuple should be error or (type, error)")
 		}
-		return parser.MapToAstNodeType(returnTuple.At(0).Type()), nil
+		return parser.MapToAstNodeType(returnTuple.At(0).Type())
 	}
 	return nil, errors.New("return tuple should be error or (type, error)")
 }
 
-func (parser *Parser) MapToAstNodeType(expr types.Type) models.AstNode {
+func (parser *Parser) MapToAstNodeType(expr types.Type) (models.AstNode, error) {
 	switch expr := expr.(type) {
 	case *types.Basic:
 		switch expr.Kind() {
 		case types.String:
 			return models.BuiltInType{
 				Type: models.StringLiteral,
-			}
+			}, nil
 		case types.Int, types.Int8, types.Int16, types.Int32, types.Int64:
 			return models.BuiltInType{
 				Type: models.IntLiteral,
-			}
+			}, nil
 		case types.Bool:
 			return models.BuiltInType{
 				Type: models.BoolLiteral,
-			}
+			}, nil
 		case types.Float32, types.Float64:
 			return models.BuiltInType{
 				Type: models.FloatLiteral,
-			}
+			}, nil
 		}
 	case *types.Struct:
 		return parser.ParseStruct(expr)
@@ -202,28 +206,56 @@ func (parser *Parser) MapToAstNodeType(expr types.Type) models.AstNode {
 	case *types.Named:
 		name := expr.Obj().Name()
 		path := expr.Obj().Pkg().Path() + "/" + expr.Obj().Pkg().Name()
-		parser.AddTypeDefinition(name, path, expr.Underlying())
+		err := parser.AddTypeDefinition(name, path, expr.Underlying())
+		if err != nil {
+			return nil, err
+		}
 		return models.CustomType{
 			Type: models.CustomNodeLiteral,
 			Name: &name,
-		}
+		}, nil
 	case *types.Slice:
+		generic, err := parser.MapToAstNodeType(expr.Elem())
+		if err != nil {
+			return nil, err
+		}
 		return models.Array{
 			Type:    models.ArrayType,
-			Generic: parser.MapToAstNodeType(expr.Elem()),
-		}
+			Generic: generic,
+		}, nil
 	case *types.Array:
+		generic, err := parser.MapToAstNodeType(expr.Elem())
+		if err != nil {
+			return nil, err
+		}
 		return models.Array{
 			Type:    models.ArrayType,
-			Generic: parser.MapToAstNodeType(expr.Elem()),
+			Generic: generic,
+		}, nil
+	case *types.Map:
+		genericKey, err := parser.MapToAstNodeType(expr.Key())
+		if err != nil {
+			return nil, err
 		}
+		if genericKey.GetType() != models.StringLiteral {
+			return nil, errors.New("map key should be string")
+		}
+		genericValue, err := parser.MapToAstNodeType(expr.Elem())
+		if err != nil {
+			return nil, err
+		}
+		return models.Map{
+			Type:         models.MapType,
+			GenericKey:   genericKey,
+			GenericValue: genericValue,
+		}, nil
 	}
 	return models.BuiltInType{
 		Type: models.AnyLiteral,
-	}
+	}, nil
 }
 
-func (parser *Parser) ParseStruct(expr *types.Struct) models.TypeLiteralStruct {
+func (parser *Parser) ParseStruct(expr *types.Struct) (*models.TypeLiteralStruct, error) {
 	properties := make([]*models.StructProperty, 0)
 	for i := 0; i < expr.NumFields(); i++ {
 		field := expr.Field(i)
@@ -232,33 +264,41 @@ func (parser *Parser) ParseStruct(expr *types.Struct) models.TypeLiteralStruct {
 		case *types.Pointer:
 			optional = true
 		}
+		propertyType, err := parser.MapToAstNodeType(field.Type())
+		if err != nil {
+			return nil, err
+		}
 		properties = append(properties, &models.StructProperty{
 			Name:     field.Name(),
-			Type:     parser.MapToAstNodeType(field.Type()),
+			Type:     propertyType,
 			Optional: optional,
 		})
 	}
-	return models.TypeLiteralStruct{
+	return &models.TypeLiteralStruct{
 		Type:       models.TypeLiteral,
 		Properties: properties,
-	}
+	}, nil
 }
 
-func (parser *Parser) AddTypeDefinition(name string, path string, definedType types.Type) {
+func (parser *Parser) AddTypeDefinition(name string, path string, definedType types.Type) error {
 	for _, node := range parser.Program.Body {
 		if *node.GetName() == name {
-			return
+			return nil
 		}
 	}
 	switch definedType.(type) {
 	case *types.Struct:
 		structType := definedType.(*types.Struct)
-		typeLiteral := parser.ParseStruct(structType)
+		typeLiteral, err := parser.ParseStruct(structType)
+		if err != nil {
+			return err
+		}
 		parser.Program.Body = append(parser.Program.Body, &models.Struct{
 			Name:        name,
-			TypeLiteral: &typeLiteral,
+			TypeLiteral: typeLiteral,
 			Type:        models.StructLiteral,
 			Path:        path,
 		})
 	}
+	return nil
 }
