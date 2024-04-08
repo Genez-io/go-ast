@@ -30,7 +30,7 @@ func main() {
 	filePath := os.Args[1]
 	cwd, err := os.Getwd()
 	if err != nil {
-		panic(err)
+		SendError(err)
 	}
 	cfg := &packages.Config{
 		Mode: packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedCompiledGoFiles | packages.NeedName | packages.NeedFiles,
@@ -38,7 +38,7 @@ func main() {
 	}
 	classDirectory, err := filepath.Abs(filepath.Dir(filePath))
 	if err != nil {
-		panic(err)
+		SendError(err)
 	}
 	pkgs, err := packages.Load(cfg, classDirectory)
 	if err != nil {
