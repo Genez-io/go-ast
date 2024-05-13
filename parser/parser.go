@@ -4,6 +4,7 @@ import (
 	"errors"
 	"go/ast"
 	"go/doc"
+	"go/token"
 	"go/types"
 
 	"golang.org/x/tools/go/types/typeutil"
@@ -17,14 +18,16 @@ type Parser struct {
 	Package *types.Package
 	Docs    *doc.Package
 	TypeDoc *doc.Type
+	FileSet *token.FileSet
 }
 
-func New(info *types.Info, pkg *types.Package, doc *doc.Package) *Parser {
+func New(info *types.Info, pkg *types.Package, doc *doc.Package, fileSet *token.FileSet) *Parser {
 	return &Parser{
 		Program: &models.Program{},
 		Info:    info,
 		Package: pkg,
 		Docs:    doc,
+		FileSet: fileSet,
 	}
 }
 
@@ -102,7 +105,7 @@ func (parser *Parser) ParseFunction(class *models.Class, function *types.Func) e
 	functionSignature := function.Type().(*types.Signature)
 	returnType, err := parser.MapReturnTypeToAstNodeType(functionSignature.Results())
 	if err != nil {
-		return err
+		return models.NewParserError(err.Error(), parser.FileSet.Position(function.Pos()).Filename, parser.FileSet.Position(function.Pos()).Line, parser.FileSet.Position(function.Pos()).Column)
 	}
 	var funcDoc string
 	if parser.TypeDoc != nil {
@@ -160,7 +163,7 @@ func checkIfTypeIsErrorInterface(expr types.Type) bool {
 
 func (parser *Parser) MapReturnTypeToAstNodeType(returnTuple *types.Tuple) (models.AstNode, error) {
 	if returnTuple == nil || returnTuple.Len() == 0 || returnTuple.Len() > 2 {
-		return nil, errors.New("return tuple should be error or (type, error)")
+		return nil, errors.New(models.IncorrectReturnTuple)
 	}
 	if returnTuple.Len() == 1 {
 		if checkIfTypeIsErrorInterface(returnTuple.At(0).Type()) {
@@ -168,14 +171,14 @@ func (parser *Parser) MapReturnTypeToAstNodeType(returnTuple *types.Tuple) (mode
 				Type: models.VoidLiteral,
 			}, nil
 		}
-		return nil, errors.New("return tuple should be error or (type, error)")
+		return nil, errors.New(models.IncorrectReturnTuple)
 	} else if returnTuple.Len() == 2 {
 		if !checkIfTypeIsErrorInterface(returnTuple.At(1).Type()) {
-			return nil, errors.New("return tuple should be error or (type, error)")
+			return nil, errors.New(models.IncorrectReturnTuple)
 		}
 		return parser.MapToAstNodeType(returnTuple.At(0).Type())
 	}
-	return nil, errors.New("return tuple should be error or (type, error)")
+	return nil, errors.New(models.IncorrectReturnTuple)
 }
 
 func (parser *Parser) MapToAstNodeType(expr types.Type) (models.AstNode, error) {
@@ -206,6 +209,30 @@ func (parser *Parser) MapToAstNodeType(expr types.Type) (models.AstNode, error) 
 	case *types.Named:
 		name := expr.Obj().Name()
 		path := expr.Obj().Pkg().Path() + "/" + expr.Obj().Pkg().Name()
+		if expr.Obj().Pkg().Name() == "context" && name == "Context" {
+			properties := make([]*models.StructProperty, 0)
+			properties = append(properties, &models.StructProperty{
+				Name: "token",
+				Type: models.BuiltInType{
+					Type: models.StringLiteral,
+				},
+				Optional: true,
+			})
+			parser.Program.Body = append(parser.Program.Body, &models.Struct{
+				Name: "GnzContext",
+				Type: models.StructLiteral,
+				Path: "context",
+				TypeLiteral: &models.TypeLiteralStruct{
+					Type:       models.TypeLiteral,
+					Properties: properties,
+				},
+			})
+			gnzContext := "GnzContext"
+			return models.CustomType{
+				Type: models.CustomNodeLiteral,
+				Name: &gnzContext,
+			}, nil
+		}
 		err := parser.AddTypeDefinition(name, path, expr.Underlying())
 		if err != nil {
 			return nil, err

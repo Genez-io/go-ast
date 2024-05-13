@@ -9,6 +9,7 @@ import (
 
 	"golang.org/x/tools/go/packages"
 
+	"gnz-go-ast/models"
 	genezio_parser "gnz-go-ast/parser"
 )
 
@@ -17,6 +18,16 @@ type Error struct {
 }
 
 func SendError(err error) {
+	switch err.(type) {
+	case models.ParserError:
+		parserError := err.(models.ParserError)
+		json, err := json.Marshal(parserError)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println(string(json))
+		return
+	}
 	json, err := json.Marshal(Error{
 		Error: err.Error(),
 	})
@@ -58,7 +69,7 @@ func main() {
 			SendError(err)
 			return
 		}
-		astParser := genezio_parser.New(pkg.TypesInfo, pkg.Types, p)
+		astParser := genezio_parser.New(pkg.TypesInfo, pkg.Types, p, pkg.Fset)
 		err = astParser.Parse(pkg.Syntax[0])
 		if err != nil {
 			SendError(err)
